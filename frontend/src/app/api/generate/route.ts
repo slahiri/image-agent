@@ -4,10 +4,11 @@ import { GeneratedImage } from "@/types/chat";
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { prompt, settings, sessionId } = body;
+  // Parse body first so we can use it in catch block
+  const body = await request.json();
+  const { prompt, settings, sessionId } = body;
 
+  try {
     // Call the LangGraph backend
     const response = await fetch(`${BACKEND_URL}/api/generate`, {
       method: "POST",
@@ -35,8 +36,7 @@ export async function POST(request: NextRequest) {
     console.error("Generate error:", error);
 
     // Return mock data for development when backend is unavailable
-    const body = await request.clone().json();
-    return generateMockImages(body.prompt, body.settings);
+    return generateMockImages(prompt, settings);
   }
 }
 

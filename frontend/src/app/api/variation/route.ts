@@ -4,10 +4,10 @@ import { GeneratedImage } from "@/types/chat";
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { imageId, imageUrl, prompt } = body;
+  const body = await request.json();
+  const { imageId, imageUrl, prompt } = body;
 
+  try {
     // Call the LangGraph backend
     const response = await fetch(`${BACKEND_URL}/api/variation`, {
       method: "POST",
@@ -32,8 +32,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(data);
   } catch (error) {
     console.error("Variation error:", error);
-    const body = await request.clone().json();
-    return generateMockVariations(body.prompt);
+    return generateMockVariations(prompt);
   }
 }
 
