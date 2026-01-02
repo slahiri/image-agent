@@ -5,6 +5,9 @@ __pycache__/
 .venv/
 venv/
 
+# Package manager caches
+.pnpm-store/
+
 # Build outputs
 .next/
 out/

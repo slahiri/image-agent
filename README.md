@@ -10,6 +10,11 @@ A Midjourney-like conversational interface for AI image generation. Built with N
 - **Session Management**: Multiple chat sessions with history
 - **Modular Tools**: Extensible tool system for easy integration with different APIs
 
+## Prerequisites
+
+- **Node.js** 18+ with **pnpm** (`npm install -g pnpm`)
+- **Python** 3.10+ with **uv** (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
+
 ## Quick Start
 
 ### Frontend Only (Mock Mode)
@@ -18,8 +23,8 @@ The frontend works standalone with mock images for testing:
 
 ```bash
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Open http://localhost:3000 and start generating images!
@@ -29,15 +34,40 @@ Open http://localhost:3000 and start generating images!
 1. **Start the backend:**
 ```bash
 cd backend
-pip install -e .
-python -m app.main
+uv sync
+uv run python -m app.main
 ```
 
 2. **Start the frontend:**
 ```bash
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm dev
+```
+
+## Package Managers
+
+| Component | Package Manager | Why |
+|-----------|-----------------|-----|
+| Frontend | **pnpm** | Fast, efficient disk space, strict dependency resolution |
+| Backend | **uv** | Ultra-fast Python package manager from Astral (ruff creators) |
+
+### Common Commands
+
+**Frontend (pnpm):**
+```bash
+pnpm install          # Install dependencies
+pnpm dev              # Start dev server
+pnpm build            # Production build
+pnpm lint             # Run ESLint
+```
+
+**Backend (uv):**
+```bash
+uv sync               # Install dependencies
+uv run python -m app.main    # Run server
+uv add <package>      # Add dependency
+uv run pytest         # Run tests
 ```
 
 ## Project Structure
@@ -62,7 +92,8 @@ npm run dev
 │   │   │   └── use-chat.ts  # Chat state management
 │   │   └── types/
 │   │       └── chat.ts      # TypeScript types
-│   └── package.json
+│   ├── package.json
+│   └── pnpm-lock.yaml
 │
 ├── backend/                  # Python + FastAPI + LangGraph
 │   ├── app/
@@ -72,7 +103,8 @@ npm run dev
 │   │   └── tools/           # Modular tool system
 │   │       ├── base.py      # Tool base classes
 │   │       └── image_tools.py
-│   └── pyproject.toml
+│   ├── pyproject.toml
+│   └── uv.lock
 │
 └── README.md
 ```
@@ -175,12 +207,14 @@ class RealGenerateImageTool(Tool):
 - Tailwind CSS v4
 - shadcn/ui components
 - Lucide icons
+- pnpm (package manager)
 
 **Backend:**
 - Python 3.10+
 - FastAPI
 - LangGraph
 - Pydantic
+- uv (package manager)
 
 ## License
 
