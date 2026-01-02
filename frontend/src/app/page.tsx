@@ -1,133 +1,125 @@
 "use client";
 
-import { useState } from "react";
-import { useChat } from "@/hooks/use-chat";
+import { useState, useCallback } from "react";
 import {
-  Sidebar,
-  MessageList,
-  ChatInput,
-  ImageDialog,
-} from "@/components/chat";
-import { GeneratedImage } from "@/types/chat";
+  PromptInput,
+  GenerationHistory,
+  PromptDetailsPanel,
+  Generation,
+  PromptSettings,
+} from "@/components/create";
 
-export default function Home() {
-  const {
-    sessions,
-    activeSession,
-    activeSessionId,
-    isGenerating,
-    createSession,
-    deleteSession,
-    selectSession,
-    sendMessage,
-    handleUpscale,
-    handleVariation,
-    handleRemix,
-  } = useChat();
+export default function CreatePage() {
+  const [generations, setGenerations] = useState<Generation[]>([]);
+  const [selectedGeneration, setSelectedGeneration] = useState<Generation | null>(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(
-    null
-  );
-  const [imageDialogOpen, setImageDialogOpen] = useState(false);
+  const handleGenerate = useCallback(async (prompt: string, settings: PromptSettings) => {
+    setIsGenerating(true);
 
-  const handleFullscreen = (image: GeneratedImage) => {
-    setSelectedImage(image);
-    setImageDialogOpen(true);
-  };
+    try {
+      // Call the API
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          settings: {
+            numberOfImages: 4,
+            width: 1024,
+            height: 1024,
+            model: "flux",
+          },
+        }),
+      });
 
-  const handleUpscaleWithClose = (image: GeneratedImage) => {
-    setImageDialogOpen(false);
-    handleUpscale(image);
-  };
+      const data = await response.json();
 
-  const handleVariationWithClose = (image: GeneratedImage) => {
-    setImageDialogOpen(false);
-    handleVariation(image);
-  };
+      const newGeneration: Generation = {
+        id: `gen-${Date.now()}`,
+        prompt,
+        images: data.images.map((img: any, i: number) => ({
+          id: img.id,
+          url: img.url,
+          index: i,
+        })),
+        createdAt: new Date(),
+        style: `style ${settings.style}`,
+        version: settings.version,
+      };
 
-  const handleRemixWithClose = (image: GeneratedImage) => {
-    setImageDialogOpen(false);
-    handleRemix(image);
-  };
+      setGenerations((prev) => [newGeneration, ...prev]);
+      setSelectedGeneration(newGeneration);
+      setSelectedImageIndex(0);
+    } catch (error) {
+      console.error("Generation error:", error);
+    } finally {
+      setIsGenerating(false);
+    }
+  }, []);
+
+  const handleSelectGeneration = useCallback((generation: Generation) => {
+    setSelectedGeneration(generation);
+    setSelectedImageIndex(0);
+  }, []);
+
+  const handleSelectImage = useCallback((generation: Generation, imageIndex: number) => {
+    setSelectedGeneration(generation);
+    setSelectedImageIndex(imageIndex);
+  }, []);
+
+  const handleDelete = useCallback((generation: Generation) => {
+    setGenerations((prev) => prev.filter((g) => g.id !== generation.id));
+    if (selectedGeneration?.id === generation.id) {
+      setSelectedGeneration(null);
+    }
+  }, [selectedGeneration]);
+
+  const handleUpscale = useCallback((generation: Generation, imageIndex: number) => {
+    console.log("Upscale:", generation.id, imageIndex);
+    // TODO: Implement upscale
+  }, []);
+
+  const handleVariation = useCallback((generation: Generation, imageIndex: number) => {
+    console.log("Variation:", generation.id, imageIndex);
+    // TODO: Implement variation
+  }, []);
+
+  const handleRemix = useCallback((generation: Generation) => {
+    console.log("Remix:", generation.id);
+    // TODO: Implement remix
+  }, []);
 
   return (
-    <div className="flex h-screen bg-background">
-      {/* Sidebar */}
-      <Sidebar
-        sessions={sessions}
-        activeSessionId={activeSessionId || undefined}
-        onSelectSession={selectSession}
-        onNewSession={createSession}
-        onDeleteSession={deleteSession}
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(!sidebarOpen)}
+    <div className="flex flex-col h-screen">
+      {/* Prompt Input Bar */}
+      <PromptInput
+        onSubmit={handleGenerate}
+        isGenerating={isGenerating}
+        placeholder="Describe what you want to create..."
       />
 
-      {/* Main content */}
-      <main className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <header className="h-14 border-b flex items-center justify-between px-4 shrink-0">
-          <div className="flex items-center gap-4">
-            <button
-              className="md:hidden p-2 hover:bg-muted rounded-lg"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 6h16M4 12h16M4 18h16"
-                />
-              </svg>
-            </button>
-            <h1 className="font-semibold truncate">
-              {activeSession?.title || "New Chat"}
-            </h1>
-          </div>
-          <div className="flex items-center gap-2">
-            {isGenerating && (
-              <span className="text-sm text-muted-foreground flex items-center gap-2">
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                Generating...
-              </span>
-            )}
-          </div>
-        </header>
+      {/* Main Content Area */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Generation History */}
+        <GenerationHistory
+          generations={generations}
+          selectedGeneration={selectedGeneration}
+          onSelectGeneration={handleSelectGeneration}
+          onSelectImage={handleSelectImage}
+          onDelete={handleDelete}
+        />
 
-        {/* Messages */}
-        <MessageList
-          messages={activeSession?.messages || []}
+        {/* Prompt Details Panel */}
+        <PromptDetailsPanel
+          generation={selectedGeneration}
+          selectedImageIndex={selectedImageIndex}
           onUpscale={handleUpscale}
           onVariation={handleVariation}
           onRemix={handleRemix}
-          onFullscreen={handleFullscreen}
-          isLoading={isGenerating}
         />
-
-        {/* Input */}
-        <ChatInput
-          onSend={sendMessage}
-          isGenerating={isGenerating}
-          disabled={false}
-        />
-      </main>
-
-      {/* Image dialog */}
-      <ImageDialog
-        image={selectedImage}
-        open={imageDialogOpen}
-        onOpenChange={setImageDialogOpen}
-        onUpscale={handleUpscaleWithClose}
-        onVariation={handleVariationWithClose}
-        onRemix={handleRemixWithClose}
-      />
+      </div>
     </div>
   );
 }
