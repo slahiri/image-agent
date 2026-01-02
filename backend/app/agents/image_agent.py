@@ -1,13 +1,12 @@
-"""LangGraph agent for image generation workflow."""
+"""LangGraph agent for image generation workflow using tools."""
 
 from typing import Annotated, Any, TypedDict
 
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 
-from app.config import settings
 from app.models import GeneratedImage, GenerationSettings
-from app.tools import get_image_generator
+from app.tools import get_tool, get_all_tools, get_tool_schemas
 
 
 class AgentState(TypedDict):
@@ -16,40 +15,82 @@ class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
     prompt: str | None
     settings: GenerationSettings | None
-    images: list[GeneratedImage]
+    images: list[dict]
     action: str | None
+    tool_name: str | None
+    tool_args: dict | None
     error: str | None
 
 
-async def parse_prompt(state: AgentState) -> dict[str, Any]:
-    """Parse and enhance the user prompt."""
+async def parse_intent(state: AgentState) -> dict[str, Any]:
+    """Parse user intent and determine which tool to use."""
+    action = state.get("action", "generate")
     prompt = state.get("prompt", "")
+    settings = state.get("settings") or GenerationSettings()
 
-    # Here you could add LLM-based prompt enhancement
-    # For now, we just pass through the prompt
-    enhanced_prompt = prompt
+    # Map actions to tools
+    tool_mapping = {
+        "generate": "generate_image",
+        "upscale": "upscale_image",
+        "variation": "create_variation",
+        "remix": "remix_image",
+        "inpaint": "inpaint_image",
+        "remove_bg": "remove_background",
+        "style_transfer": "style_transfer",
+    }
+
+    tool_name = tool_mapping.get(action, "generate_image")
+
+    # Build tool arguments based on action
+    tool_args = {"prompt": prompt}
+
+    if action == "generate":
+        tool_args = {
+            "prompt": prompt,
+            "num_images": settings.number_of_images,
+            "width": settings.width,
+            "height": settings.height,
+            "model": settings.model,
+            "negative_prompt": settings.negative_prompt,
+        }
+    elif action in ["upscale", "variation", "remix"]:
+        # These need an image_url from the state
+        images = state.get("images", [])
+        if images:
+            tool_args["image_url"] = images[0].get("url", "")
+        tool_args["prompt"] = prompt
 
     return {
-        "prompt": enhanced_prompt,
-        "action": "generate",
+        "tool_name": tool_name,
+        "tool_args": tool_args,
     }
 
 
-async def generate_images(state: AgentState) -> dict[str, Any]:
-    """Generate images using the configured generator."""
-    prompt = state.get("prompt", "")
-    gen_settings = state.get("settings") or GenerationSettings()
+async def execute_tool(state: AgentState) -> dict[str, Any]:
+    """Execute the selected tool."""
+    tool_name = state.get("tool_name")
+    tool_args = state.get("tool_args", {})
+
+    if not tool_name:
+        return {"error": "No tool selected", "action": "error"}
+
+    tool = get_tool(tool_name)
+    if not tool:
+        return {"error": f"Tool '{tool_name}' not found", "action": "error"}
 
     try:
-        # Get the appropriate generator
-        generator = get_image_generator(
-            model=gen_settings.model,
-            openai_api_key=settings.openai_api_key,
-            stability_api_key=settings.stability_api_key,
-        )
+        result = await tool.execute(**tool_args)
 
-        # Generate images
-        images = await generator.generate(prompt, gen_settings)
+        if not result.success:
+            return {"error": result.error, "action": "error"}
+
+        # Extract images from result
+        images = []
+        if result.data:
+            if "images" in result.data:
+                images = result.data["images"]
+            elif "image" in result.data:
+                images = [result.data["image"]]
 
         return {
             "images": images,
@@ -62,68 +103,9 @@ async def generate_images(state: AgentState) -> dict[str, Any]:
         }
 
 
-async def upscale_image(state: AgentState) -> dict[str, Any]:
-    """Upscale an image to higher resolution."""
-    # For now, return mock upscaled image
-    # In production, integrate with an upscaling service like Real-ESRGAN
-    images = state.get("images", [])
-
-    if images:
-        original = images[0]
-        upscaled = GeneratedImage(
-            id=f"upscale-{original.id}",
-            url=original.url,  # Would be replaced with actual upscaled URL
-            prompt=original.prompt,
-            width=original.width * 2,
-            height=original.height * 2,
-            model="upscaler",
-            status="completed",
-        )
-        return {"images": [upscaled], "action": "complete"}
-
-    return {"error": "No image to upscale", "action": "error"}
-
-
-async def create_variation(state: AgentState) -> dict[str, Any]:
-    """Create variations of an image."""
-    prompt = state.get("prompt", "")
-    gen_settings = state.get("settings") or GenerationSettings()
-
-    try:
-        generator = get_image_generator(
-            model=gen_settings.model,
-            openai_api_key=settings.openai_api_key,
-            stability_api_key=settings.stability_api_key,
-        )
-
-        # Generate variations with slightly modified prompt
-        images = await generator.generate(prompt, gen_settings)
-
-        return {
-            "images": images,
-            "action": "complete",
-        }
-    except Exception as e:
-        return {
-            "error": str(e),
-            "action": "error",
-        }
-
-
-def route_action(state: AgentState) -> str:
-    """Route to the appropriate action based on state."""
-    action = state.get("action", "generate")
-
-    if action == "upscale":
-        return "upscale"
-    elif action == "variation":
-        return "variation"
-    elif action == "complete":
-        return END
-    elif action == "error":
-        return END
-    else:
-        return "generate"
+def route_to_end(state: AgentState) -> str:
+    """Route to end after tool execution."""
+    return END
 
 
 def create_image_agent() -> StateGraph:
@@ -131,32 +113,24 @@ def create_image_agent() -> StateGraph:
     workflow = StateGraph(AgentState)
 
     # Add nodes
-    workflow.add_node("parse", parse_prompt)
-    workflow.add_node("generate", generate_images)
-    workflow.add_node("upscale", upscale_image)
-    workflow.add_node("variation", create_variation)
+    workflow.add_node("parse_intent", parse_intent)
+    workflow.add_node("execute_tool", execute_tool)
 
     # Set entry point
-    workflow.set_entry_point("parse")
+    workflow.set_entry_point("parse_intent")
 
     # Add edges
-    workflow.add_conditional_edges(
-        "parse",
-        route_action,
-        {
-            "generate": "generate",
-            "upscale": "upscale",
-            "variation": "variation",
-            END: END,
-        },
-    )
-
-    workflow.add_edge("generate", END)
-    workflow.add_edge("upscale", END)
-    workflow.add_edge("variation", END)
+    workflow.add_edge("parse_intent", "execute_tool")
+    workflow.add_edge("execute_tool", END)
 
     return workflow.compile()
 
 
 # Create the agent instance
 image_agent = create_image_agent()
+
+
+# Export tool schemas for LLM integration
+def get_available_tools() -> list[dict]:
+    """Get available tools with their schemas."""
+    return get_tool_schemas()

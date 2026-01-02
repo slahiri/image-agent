@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException
 
-from app.agents import image_agent
+from app.agents import image_agent, get_available_tools
 from app.models import (
     GenerateRequest,
     GenerateResponse,
@@ -14,8 +14,18 @@ from app.models import (
     VariationRequest,
     VariationResponse,
 )
+from app.tools import get_tool
 
 router = APIRouter(prefix="/api", tags=["generation"])
+
+
+@router.get("/tools")
+async def list_tools():
+    """List all available image tools."""
+    return {
+        "tools": get_available_tools(),
+        "count": len(get_available_tools()),
+    }
 
 
 @router.post("/generate", response_model=GenerateResponse)
@@ -29,6 +39,8 @@ async def generate_images(request: GenerateRequest) -> GenerateResponse:
             "settings": request.settings or GenerationSettings(),
             "images": [],
             "action": "generate",
+            "tool_name": None,
+            "tool_args": None,
             "error": None,
         }
 
@@ -52,26 +64,22 @@ async def generate_images(request: GenerateRequest) -> GenerateResponse:
 async def upscale_image(request: UpscaleRequest) -> UpscaleResponse:
     """Upscale an image to higher resolution."""
     try:
-        # For now, create a mock upscaled response
-        # In production, integrate with an upscaling service
-        from datetime import datetime
+        # Use the upscale tool directly
+        tool = get_tool("upscale_image")
+        if not tool:
+            raise HTTPException(status_code=500, detail="Upscale tool not available")
 
-        from app.models import GeneratedImage, ImageStatus
-
-        upscaled_image = GeneratedImage(
-            id=f"upscale-{request.image_id}",
-            url=request.image_url,  # Would be replaced with actual upscaled URL
-            prompt="Upscaled image",
-            width=2048,
-            height=2048,
-            model="upscaler",
-            created_at=datetime.utcnow(),
-            status=ImageStatus.COMPLETED,
+        result = await tool.execute(
+            image_url=request.image_url,
+            scale=2,
         )
 
+        if not result.success:
+            raise HTTPException(status_code=500, detail=result.error)
+
         return UpscaleResponse(
-            message="Image upscaled successfully!",
-            image=upscaled_image,
+            message=result.data.get("message", "Image upscaled successfully!"),
+            image=result.data.get("image"),
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -81,27 +89,23 @@ async def upscale_image(request: UpscaleRequest) -> UpscaleResponse:
 async def create_variation(request: VariationRequest) -> VariationResponse:
     """Create variations of an image."""
     try:
-        # Prepare initial state for variation
-        initial_state = {
-            "messages": [],
-            "prompt": request.prompt,
-            "settings": GenerationSettings(number_of_images=4),
-            "images": [],
-            "action": "variation",
-            "error": None,
-        }
+        # Use the variation tool directly
+        tool = get_tool("create_variation")
+        if not tool:
+            raise HTTPException(status_code=500, detail="Variation tool not available")
 
-        # Run the agent
-        result = await image_agent.ainvoke(initial_state)
+        result = await tool.execute(
+            image_url=request.image_url,
+            prompt=request.prompt,
+            num_variations=4,
+        )
 
-        if result.get("error"):
-            raise HTTPException(status_code=500, detail=result["error"])
-
-        images = result.get("images", [])
+        if not result.success:
+            raise HTTPException(status_code=500, detail=result.error)
 
         return VariationResponse(
-            message=f"Generated {len(images)} variations",
-            images=images,
+            message=result.data.get("message", "Created variations"),
+            images=result.data.get("images", []),
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -111,28 +115,46 @@ async def create_variation(request: VariationRequest) -> VariationResponse:
 async def remix_image(request: RemixRequest) -> RemixResponse:
     """Remix an image with a new prompt."""
     try:
-        # Prepare initial state for remix
-        initial_state = {
-            "messages": [],
-            "prompt": request.prompt,
-            "settings": GenerationSettings(number_of_images=4),
-            "images": [],
-            "action": "generate",  # Remix is essentially a new generation with the prompt
-            "error": None,
-        }
+        # Use the remix tool directly
+        tool = get_tool("remix_image")
+        if not tool:
+            raise HTTPException(status_code=500, detail="Remix tool not available")
 
-        # Run the agent
-        result = await image_agent.ainvoke(initial_state)
+        result = await tool.execute(
+            image_url=request.image_url,
+            prompt=request.prompt,
+        )
 
-        if result.get("error"):
-            raise HTTPException(status_code=500, detail=result["error"])
-
-        images = result.get("images", [])
+        if not result.success:
+            raise HTTPException(status_code=500, detail=result.error)
 
         return RemixResponse(
-            message=f"Generated {len(images)} remixed images",
-            images=images,
+            message=result.data.get("message", "Remixed image"),
+            images=result.data.get("images", []),
         )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/tool/{tool_name}")
+async def execute_tool(tool_name: str, params: dict):
+    """Execute any tool by name with given parameters."""
+    try:
+        tool = get_tool(tool_name)
+        if not tool:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Tool '{tool_name}' not found. Use GET /api/tools to see available tools.",
+            )
+
+        result = await tool.execute(**params)
+
+        return {
+            "success": result.success,
+            "data": result.data,
+            "error": result.error,
+            "metadata": result.metadata,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
