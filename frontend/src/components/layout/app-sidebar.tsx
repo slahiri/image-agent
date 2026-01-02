@@ -8,19 +8,11 @@ import {
   Sparkles,
   PenLine,
   LayoutGrid,
-  Palette,
-  LayoutTemplate,
-  Wand2,
-  MessageCircle,
-  ListTodo,
-  CreditCard,
   HelpCircle,
-  Bell,
   Moon,
   Sun,
   ChevronDown,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useState } from "react";
 
@@ -28,7 +20,6 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ReactNode;
-  badge?: string;
 }
 
 const mainNav: NavItem[] = [
@@ -36,18 +27,6 @@ const mainNav: NavItem[] = [
   { label: "Create", href: "/", icon: <Sparkles className="w-5 h-5" /> },
   { label: "Edit", href: "/edit", icon: <PenLine className="w-5 h-5" /> },
   { label: "Organize", href: "/organize", icon: <LayoutGrid className="w-5 h-5" /> },
-];
-
-const aestheticsNav: NavItem[] = [
-  { label: "Personalize", href: "/personalize", icon: <Palette className="w-5 h-5" /> },
-  { label: "Moodboards", href: "/moodboards", icon: <LayoutTemplate className="w-5 h-5" />, badge: "New!" },
-  { label: "Style Creator", href: "/style-creator", icon: <Wand2 className="w-5 h-5" />, badge: "Beta" },
-];
-
-const communityNav: NavItem[] = [
-  { label: "Chat", href: "/chat", icon: <MessageCircle className="w-5 h-5" /> },
-  { label: "Tasks", href: "/tasks", icon: <ListTodo className="w-5 h-5" /> },
-  { label: "Subscribe", href: "/subscribe", icon: <CreditCard className="w-5 h-5" /> },
 ];
 
 export function AppSidebar() {
@@ -66,14 +45,6 @@ export function AppSidebar() {
     >
       <span className={cn(isActive && "text-orange-500")}>{item.icon}</span>
       <span>{item.label}</span>
-      {item.badge && (
-        <span className={cn(
-          "ml-auto text-xs px-1.5 py-0.5 rounded",
-          item.badge === "New!" ? "text-green-400" : "text-orange-400"
-        )}>
-          {item.badge}
-        </span>
-      )}
     </Link>
   );
 
@@ -90,7 +61,7 @@ export function AppSidebar() {
       </div>
 
       {/* Main Navigation */}
-      <nav className="flex-1 px-3 space-y-6 overflow-y-auto">
+      <nav className="flex-1 px-3 overflow-y-auto">
         <div className="space-y-1">
           {mainNav.map((item) => (
             <NavLink
@@ -100,34 +71,6 @@ export function AppSidebar() {
             />
           ))}
         </div>
-
-        {/* Aesthetics Section */}
-        <div>
-          <div className="px-3 mb-2">
-            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-              Aesthetics
-            </span>
-          </div>
-          <div className="space-y-1">
-            {aestheticsNav.map((item) => (
-              <NavLink key={item.href} item={item} isActive={pathname === item.href} />
-            ))}
-          </div>
-        </div>
-
-        {/* Community Section */}
-        <div>
-          <div className="px-3 mb-2">
-            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-              Community
-            </span>
-          </div>
-          <div className="space-y-1">
-            {communityNav.map((item) => (
-              <NavLink key={item.href} item={item} isActive={pathname === item.href} />
-            ))}
-          </div>
-        </div>
       </nav>
 
       {/* Bottom Section */}
@@ -135,10 +78,6 @@ export function AppSidebar() {
         <button className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 w-full transition-colors">
           <HelpCircle className="w-5 h-5" />
           <span>Help</span>
-        </button>
-        <button className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 w-full transition-colors">
-          <Bell className="w-5 h-5" />
-          <span>Updates</span>
         </button>
         <button
           onClick={() => setDarkMode(!darkMode)}
