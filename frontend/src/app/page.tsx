@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   PromptInput,
   GenerationHistory,
@@ -10,6 +11,7 @@ import {
 } from "@/components/create";
 
 export default function CreatePage() {
+  const router = useRouter();
   const [generations, setGenerations] = useState<Generation[]>([]);
   const [selectedGeneration, setSelectedGeneration] = useState<Generation | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -65,9 +67,17 @@ export default function CreatePage() {
   }, []);
 
   const handleSelectImage = useCallback((generation: Generation, imageIndex: number) => {
-    setSelectedGeneration(generation);
-    setSelectedImageIndex(imageIndex);
-  }, []);
+    // Navigate to edit page with image data
+    const image = generation.images[imageIndex];
+    if (image) {
+      const params = new URLSearchParams({
+        id: image.id,
+        url: image.url,
+        prompt: generation.prompt,
+      });
+      router.push(`/edit?${params.toString()}`);
+    }
+  }, [router]);
 
   const handleDelete = useCallback((generation: Generation) => {
     setGenerations((prev) => prev.filter((g) => g.id !== generation.id));
@@ -77,19 +87,46 @@ export default function CreatePage() {
   }, [selectedGeneration]);
 
   const handleUpscale = useCallback((generation: Generation, imageIndex: number) => {
-    console.log("Upscale:", generation.id, imageIndex);
-    // TODO: Implement upscale
-  }, []);
+    // Navigate to edit page with upscale action
+    const image = generation.images[imageIndex];
+    if (image) {
+      const params = new URLSearchParams({
+        id: image.id,
+        url: image.url,
+        prompt: generation.prompt,
+        action: "upscale",
+      });
+      router.push(`/edit?${params.toString()}`);
+    }
+  }, [router]);
 
   const handleVariation = useCallback((generation: Generation, imageIndex: number) => {
-    console.log("Variation:", generation.id, imageIndex);
-    // TODO: Implement variation
-  }, []);
+    // Navigate to edit page with variation action
+    const image = generation.images[imageIndex];
+    if (image) {
+      const params = new URLSearchParams({
+        id: image.id,
+        url: image.url,
+        prompt: generation.prompt,
+        action: "variations",
+      });
+      router.push(`/edit?${params.toString()}`);
+    }
+  }, [router]);
 
   const handleRemix = useCallback((generation: Generation) => {
-    console.log("Remix:", generation.id);
-    // TODO: Implement remix
-  }, []);
+    // Navigate to edit page with remix action
+    const image = generation.images[0];
+    if (image) {
+      const params = new URLSearchParams({
+        id: image.id,
+        url: image.url,
+        prompt: generation.prompt,
+        action: "remix",
+      });
+      router.push(`/edit?${params.toString()}`);
+    }
+  }, [router]);
 
   return (
     <div className="flex flex-col h-screen">
